@@ -341,6 +341,13 @@ tbody tr:hover {
   font-weight: 700;
 }
 
+.contract-desc {
+  margin: 6px 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .subtle {
   color: var(--muted);
   font-size: 13px;

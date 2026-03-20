@@ -88,6 +88,19 @@ window.DASHBOARD_DATA = {
     handleMarketPnl: "处理市场盈亏。",
     marketReport: "提交市场报告。"
   },
+  contractDescriptions: {
+    FeeRebateDistributor: "返佣分发与推荐返佣处理。",
+    PreTrading: "预交易市场结算与市场参数管理。",
+    DynamicFeeManager: "动态费率重置与费率管理协调。",
+    USDB: "稳定币 owner 与 vault 入口管理。",
+    ProxyAdmin: "统一管理可升级代理的升级权限。",
+    ContractFactory: "部署代充值相关业务合约。",
+    BuzzingSwapFactory: "创建交易池并管理工厂参数。",
+    "FeeAdapterTransparent (Proxy)": "费用分账、收款配置与紧急转账。",
+    tradeManagerProxy: "交易管理与清算调度授权。",
+    tBLPProxy: "tBLP 资产池权限与参数治理。",
+    sBLPProxy: "sBLP 资产池权限与参数治理。"
+  },
   permissions: [
     {
       id: "feeRebate-owner",

@@ -276,6 +276,12 @@
     return '<span class="status-badge ' + meta.className + '" title="' + escapeHtml(meta.desc) + '">' + escapeHtml(meta.label) + "</span>";
   }
 
+  function contractDescriptionHtml(contractName) {
+    const description = data.contractDescriptions && data.contractDescriptions[contractName];
+    if (!description) return "";
+    return '<div class="contract-desc">' + escapeHtml(description) + "</div>";
+  }
+
   function renderPermissions() {
     const items = filteredPermissions();
     permissionsTableBody.innerHTML = items.map((item) => {
@@ -286,6 +292,7 @@
         "<tr>",
         "<td>",
         '<div class="contract-name">' + escapeHtml(item.contract) + "</div>",
+        contractDescriptionHtml(item.contract),
         '<div class="subtle"><span class="tag ' + permissionTagClass(item.permissionType) + '">' + escapeHtml(item.permissionType) + '</span></div>',
         contractLink
           ? '<div><a class="mono-link" href="' + contractLink + '" target="_blank" rel="noreferrer">' + escapeHtml(item.address) + "</a></div>"
