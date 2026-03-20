@@ -1,33 +1,28 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Base Contract Permissions Dashboard</title>
+  <title>Base 合约权限 Dashboard</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <div class="page-shell">
     <header class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">Base Mainnet</p>
-        <h1>Contract Permissions Dashboard</h1>
+        <h1>合约权限 Dashboard</h1>
         <p class="hero-text">
-          A single view for Base mainnet ownership, oracle, auth, and ProxyAdmin upgrade control,
-          with live onchain reads, execution notes, and verification checklists.
+          集中展示 Base 主网的 owner、oracle、auth 与 ProxyAdmin 升级权限，并结合链上实时状态，
+          用于做权限迁移、治理盘点和结果复核。
         </p>
         <div class="hero-meta" id="heroMeta"></div>
       </div>
       <aside class="hero-panel">
-        <div class="panel-title">Live Mode</div>
-        <p>
-          The page can read Base mainnet in real time and compare documented values with live values from RPC.
-        </p>
+        <p>页面会实时读取 Base 主网状态，用于展示当前权限持有情况和治理目标，不做交易执行。</p>
         <div class="hero-actions">
-          <button id="refreshLiveBtn" class="primary-btn" type="button">Refresh Onchain Status</button>
-          <a class="doc-link" href="./docs/index.html" target="_blank" rel="noreferrer">Open Ops Doc</a>
+          <button id="refreshLiveBtn" class="primary-btn" type="button">刷新链上状态</button>
         </div>
-        <div class="rpc-status" id="rpcStatus">RPC not connected yet.</div>
+        <div class="rpc-status" id="rpcStatus">RPC 尚未连接。</div>
       </aside>
     </header>
 
@@ -36,39 +31,29 @@
 
       <section class="section-block">
         <div class="section-head">
-          <div>
-            <p class="section-kicker">Wallet Roles</p>
-            <h2>Role Wallets</h2>
-          </div>
+          <div><h2>钱包分工</h2></div>
         </div>
         <div class="wallet-grid" id="walletGrid"></div>
       </section>
 
       <section class="section-block">
         <div class="section-head">
-          <div>
-            <p class="section-kicker">Live Health</p>
-            <h2>Onchain Read Summary</h2>
-          </div>
+          <div><h2>实时读取概览</h2></div>
         </div>
         <div class="summary-grid" id="liveSummaryGrid"></div>
       </section>
 
       <section class="section-block">
         <div class="section-head">
-          <div>
-            <p class="section-kicker">Permissions</p>
-            <h2>Permission Inventory</h2>
-          </div>
+          <div><h2>权限总览</h2></div>
           <div class="filters">
-            <input id="searchInput" type="search" placeholder="Search contract, address, function, permission type">
-            <select id="typeFilter">
-              <option value="all">All permission types</option>
-            </select>
+            <input id="searchInput" type="search" placeholder="搜索合约、地址、函数、权限类型">
+            <select id="typeFilter"><option value="all">全部权限类型</option></select>
             <select id="statusFilter">
-              <option value="all">All statuses</option>
-              <option value="pending">Pending handover</option>
-              <option value="assigned">Assigned</option>
+              <option value="all">全部状态</option>
+              <option value="pending_transfer">待迁移</option>
+              <option value="pending_auth">待补齐</option>
+              <option value="assigned">已分配</option>
             </select>
           </div>
         </div>
@@ -76,96 +61,15 @@
           <table>
             <thead>
               <tr>
-                <th>Contract / Permission</th>
-                <th>Documented Controller</th>
-                <th>Live Onchain Read</th>
-                <th>Suggested Target / Note</th>
-                <th>Key Functions</th>
-                <th>Risk</th>
+                <th>合约 / 权限</th>
+                <th>链上当前权限</th>
+                <th>建议接收方 / 备注</th>
+                <th>关键函数</th>
               </tr>
             </thead>
             <tbody id="permissionsTableBody"></tbody>
           </table>
         </div>
-      </section>
-
-      <section class="section-block">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Function Matrix</p>
-            <h2>Permission Function Matrix</h2>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Contract</th>
-                <th>Permission Type</th>
-                <th>Callable Functions</th>
-                <th>Impact</th>
-                <th>Source</th>
-              </tr>
-            </thead>
-            <tbody id="functionTableBody"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="section-block">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Upgradeable</p>
-            <h2>Proxy Upgrade Surface</h2>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Proxy</th>
-                <th>Documented Proxy</th>
-                <th>Live Implementation</th>
-                <th>Documented ProxyAdmin</th>
-                <th>Live ProxyAdmin</th>
-                <th>Live ProxyAdmin Owner</th>
-              </tr>
-            </thead>
-            <tbody id="proxyTableBody"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="split-grid">
-        <section class="section-block">
-          <div class="section-head">
-            <div>
-              <p class="section-kicker">Execution</p>
-              <h2>Suggested Sequence</h2>
-            </div>
-          </div>
-          <ol class="timeline" id="executionList"></ol>
-        </section>
-
-        <section class="section-block">
-          <div class="section-head">
-            <div>
-              <p class="section-kicker">Verification</p>
-              <h2>Checklist</h2>
-            </div>
-          </div>
-          <ul class="checklist" id="auditList"></ul>
-        </section>
-      </section>
-
-      <section class="section-block">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Risk Notes</p>
-            <h2>Important Notes</h2>
-          </div>
-        </div>
-        <div class="notes-grid" id="notesGrid"></div>
       </section>
     </main>
   </div>

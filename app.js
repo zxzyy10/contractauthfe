@@ -1,6 +1,6 @@
 (function () {
   const data = window.DASHBOARD_DATA;
-  const ethers = window.ethers;
+  const ethersLib = window.ethers;
   const state = {
     search: "",
     type: "all",
@@ -8,38 +8,19 @@
     provider: null,
     providerUrl: null,
     livePermissionReads: {},
-    liveProxyReads: {},
-    liveStats: { ok: 0, mismatch: 0, unknown: 0, errors: 0 }
+    liveStats: { permissionReads: 0, errors: 0, loading: 0 }
   };
-
-  const IMPLEMENTATION_SLOT = "0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC";
-  const ADMIN_SLOT = "0xB53127684A568B3173AE13B9F8A6016E243E63B6E8EE1178D6A717850B5D6103";
 
   const heroMeta = document.getElementById("heroMeta");
   const summaryGrid = document.getElementById("summaryGrid");
   const walletGrid = document.getElementById("walletGrid");
   const liveSummaryGrid = document.getElementById("liveSummaryGrid");
   const permissionsTableBody = document.getElementById("permissionsTableBody");
-  const functionTableBody = document.getElementById("functionTableBody");
-  const proxyTableBody = document.getElementById("proxyTableBody");
-  const executionList = document.getElementById("executionList");
-  const auditList = document.getElementById("auditList");
-  const notesGrid = document.getElementById("notesGrid");
   const searchInput = document.getElementById("searchInput");
   const typeFilter = document.getElementById("typeFilter");
   const statusFilter = document.getElementById("statusFilter");
   const rpcStatus = document.getElementById("rpcStatus");
   const refreshLiveBtn = document.getElementById("refreshLiveBtn");
-
-  function explorerLink(address) {
-    if (!address || address === "TBD" || address === "Unknown in current inventory") return null;
-    return "https://basescan.org/address/" + address;
-  }
-
-  function shortAddress(address) {
-    if (!address || address.length < 10) return address;
-    return address.slice(0, 6) + "..." + address.slice(-4);
-  }
 
   function escapeHtml(text) {
     return String(text)
@@ -50,6 +31,20 @@
       .replaceAll("'", "&#39;");
   }
 
+  function explorerLink(address) {
+    if (!address || address === "TBD") return null;
+    return "https://basescan.org/address/" + address;
+  }
+
+  function normalizedAddress(value) {
+    if (!value || typeof value !== "string" || !ethersLib) return null;
+    try {
+      return ethersLib.utils.getAddress(value);
+    } catch (error) {
+      return null;
+    }
+  }
+
   function permissionTagClass(type) {
     const map = {
       owner: "tag-owner",
@@ -57,48 +52,37 @@
       auth: "tag-auth",
       proxyAdmin: "tag-proxyadmin",
       vault: "tag-owner",
-      ownerOrLmPoolDeployer: "tag-owner",
-      proxy: "tag-proxyadmin"
+      ownerOrLmPoolDeployer: "tag-owner"
     };
     return map[type] || "tag-owner";
   }
 
-  function riskClass(risk) {
-    return "risk-" + risk;
+  function isAddressMatch(left, right) {
+    const normalizedLeft = normalizedAddress(left);
+    const normalizedRight = normalizedAddress(right);
+    return !!normalizedLeft && !!normalizedRight && normalizedLeft === normalizedRight;
   }
 
-  function statusClass(kind) {
-    const map = {
-      ok: "live-ok",
-      mismatch: "live-mismatch",
-      unknown: "live-unknown",
-      error: "live-error",
-      loading: "live-loading"
-    };
-    return map[kind] || "live-unknown";
-  }
-
-  function normalizedAddress(value) {
-    if (!value || typeof value !== "string") return null;
-    try {
-      return ethers.utils.getAddress(value);
-    } catch (error) {
-      return null;
+  function statusMeta(status) {
+    if (status === "pending_transfer") {
+      return {
+        label: "待迁移",
+        className: "status-pending",
+        desc: "该权限当前仍在旧地址上，尚未迁移到目标治理地址。"
+      };
     }
-  }
-
-  function addressFromStorage(raw) {
-    if (!raw || raw === "0x") return null;
-    const body = raw.slice(2).padStart(64, "0");
-    const hex = "0x" + body.slice(24);
-    return normalizedAddress(hex);
-  }
-
-  function compareAddress(documented, live) {
-    const doc = normalizedAddress(documented);
-    const actual = normalizedAddress(live);
-    if (!doc || !actual) return "unknown";
-    return doc === actual ? "ok" : "mismatch";
+    if (status === "pending_auth") {
+      return {
+        label: "待补齐",
+        className: "status-pending",
+        desc: "该权限主体已明确，但目标地址尚未补入 auth / wards 授权名单。"
+      };
+    }
+    return {
+      label: "已分配",
+      className: "status-done",
+      desc: "该权限当前已分配到预期地址，状态符合治理预期。"
+    };
   }
 
   function renderHero() {
@@ -120,7 +104,7 @@
       const link = explorerLink(wallet.address);
       const addressHtml = link
         ? '<a class="mono-link" href="' + link + '" target="_blank" rel="noreferrer">' + escapeHtml(wallet.address) + "</a>"
-        : '<code>' + escapeHtml(wallet.address) + "</code>";
+        : "<code>" + escapeHtml(wallet.address) + "</code>";
 
       return [
         '<article class="wallet-card">',
@@ -128,9 +112,7 @@
         "<p>" + escapeHtml(wallet.description) + "</p>",
         '<div class="address-line">',
         addressHtml,
-        wallet.address && wallet.address !== "TBD"
-          ? '<button class="copy-btn" data-copy="' + escapeHtml(wallet.address) + '">Copy</button>'
-          : "",
+        wallet.address && wallet.address !== "TBD" ? '<button class="copy-btn" data-copy="' + escapeHtml(wallet.address) + '">复制</button>' : "",
         "</div>",
         "</article>"
       ].join("");
@@ -138,11 +120,12 @@
   }
 
   function renderLiveSummary() {
+    const authReads = Object.values(state.livePermissionReads).filter((item) => item && item.status === "ok" && item.kind === "auth").length;
     const cards = [
-      { label: "Matched", value: state.liveStats.ok, sub: "Documented value matches live read" },
-      { label: "Mismatched", value: state.liveStats.mismatch, sub: "Documented value differs from live chain state" },
-      { label: "Unknown", value: state.liveStats.unknown, sub: "No clean comparison possible yet" },
-      { label: "Errors", value: state.liveStats.errors, sub: "RPC or contract read failed" }
+      { label: "已读取权限", value: state.liveStats.permissionReads, sub: "成功读取的 owner / oracle / auth 实时状态" },
+      { label: "已读取 auth", value: authReads, sub: "成功读取的 auth / wards 授权状态" },
+      { label: "读取中", value: state.liveStats.loading, sub: "仍在等待 RPC 返回的条目" },
+      { label: "读取错误", value: state.liveStats.errors, sub: "RPC 或合约读取失败的条目" }
     ];
 
     liveSummaryGrid.innerHTML = cards.map((item) => [
@@ -156,7 +139,7 @@
 
   function populateTypeFilter() {
     const types = [...new Set(data.permissions.map((item) => item.permissionType))];
-    typeFilter.innerHTML = '<option value="all">All permission types</option>' +
+    typeFilter.innerHTML = '<option value="all">全部权限类型</option>' +
       types.map((type) => '<option value="' + escapeHtml(type) + '">' + escapeHtml(type) + "</option>").join("");
   }
 
@@ -165,120 +148,175 @@
       const haystack = [
         item.contract,
         item.address,
-        item.documentedController,
         item.suggestedController,
+        item.expectedController,
+        item.expectedAccount,
         item.permissionType,
         item.functions.join(" "),
         item.note
       ].join(" ").toLowerCase();
+
       return (!state.search || haystack.includes(state.search)) &&
         (state.type === "all" || item.permissionType === state.type) &&
         (state.status === "all" || item.status === state.status);
     });
   }
 
-  function liveStateHtml(read) {
-    if (!read) return '<span class="live-pill live-loading">Not loaded</span>';
-    const label = read.status === "ok" ? "Match" :
-      read.status === "mismatch" ? "Mismatch" :
-      read.status === "error" ? "Error" :
-      read.status === "loading" ? "Loading" : "Unknown";
-    const value = read.value ? '<div><code>' + escapeHtml(read.value) + "</code></div>" : "";
-    const detail = read.detail ? '<div class="subtle">' + escapeHtml(read.detail) + "</div>" : "";
-    return '<span class="live-pill ' + statusClass(read.status) + '">' + label + "</span>" + value + detail;
+  function formatReadValue(item, rawValue) {
+    if (item.permissionType === "auth") {
+      const compareValue = typeof rawValue === "boolean"
+        ? rawValue
+        : Number(rawValue && rawValue.toString ? rawValue.toString() : rawValue) > 0;
+
+      return {
+        kind: "auth",
+        compareValue,
+        displayHtml:
+          "<div><code>" + escapeHtml(item.expectedAccount) + "</code></div>" +
+          '<div class="subtle">' + escapeHtml(compareValue ? "已在链上授权名单中" : "当前未在链上授权名单中") + "</div>"
+      };
+    }
+
+    const value = typeof rawValue === "string" ? rawValue : rawValue.toString();
+    return {
+      kind: "address",
+      compareValue: value,
+      displayHtml:
+        "<div><code>" + escapeHtml(value) + "</code></div>" +
+        '<div class="subtle">' + escapeHtml(item.permissionType === "oracle" ? "当前 oracle 地址" : "当前权限持有地址") + "</div>"
+    };
+  }
+
+  function liveStateHtml(item, read) {
+    if (!read) return '<span class="live-pill live-loading">未读取</span>';
+    if (read.status === "loading") return '<span class="live-pill live-loading">读取中</span>';
+    if (read.status === "error") {
+      return '<span class="live-pill live-error">读取失败</span><div class="subtle">' + escapeHtml(read.detail || "链上读取失败") + "</div>";
+    }
+    return '<span class="live-pill live-ok">当前链上值</span>' + read.displayHtml;
+  }
+
+  function expectedStateHtml(item, read) {
+    if (item.permissionType === "auth") {
+      const account = item.expectedAccount;
+      const expectedAuthorized = !!item.expectedAuthorized;
+
+      if (!read || read.status === "loading") {
+        return [
+          '<div class="expected-block">',
+          '<div class="subtle">期望 auth 地址</div>',
+          "<div><code>" + escapeHtml(account) + "</code></div>",
+          '<div class="expected-state expected-pending">等待链上返回后比对</div>',
+          "</div>"
+        ].join("");
+      }
+
+      if (read.status === "error") {
+        return [
+          '<div class="expected-block">',
+          '<div class="subtle">期望 auth 地址</div>',
+          "<div><code>" + escapeHtml(account) + "</code></div>",
+          '<div class="expected-state expected-pending">读取失败，暂不比对</div>',
+          "</div>"
+        ].join("");
+      }
+
+      const matched = read.compareValue === expectedAuthorized;
+      return [
+        '<div class="expected-block">',
+        '<div class="subtle">期望 auth 地址</div>',
+        "<div><code>" + escapeHtml(account) + "</code></div>",
+        '<div class="expected-state ' + (matched ? "expected-match" : "expected-mismatch") + '">' + escapeHtml(matched ? "与期望一致" : "与期望不一致") + "</div>",
+        "</div>"
+      ].join("");
+    }
+
+    if (!item.expectedController) {
+      return '<div class="subtle">未配置期望地址</div>';
+    }
+
+    if (!read || read.status === "loading") {
+      return [
+        '<div class="expected-block">',
+        '<div class="subtle">期望地址</div>',
+        "<div><code>" + escapeHtml(item.expectedController) + "</code></div>",
+        '<div class="expected-state expected-pending">等待链上返回后比对</div>',
+        "</div>"
+      ].join("");
+    }
+
+    if (read.status === "error") {
+      return [
+        '<div class="expected-block">',
+        '<div class="subtle">期望地址</div>',
+        "<div><code>" + escapeHtml(item.expectedController) + "</code></div>",
+        '<div class="expected-state expected-pending">读取失败，暂不比对</div>',
+        "</div>"
+      ].join("");
+    }
+
+    const matched = isAddressMatch(item.expectedController, read.compareValue);
+    return [
+      '<div class="expected-block">',
+      '<div class="subtle">期望地址</div>',
+      "<div><code>" + escapeHtml(item.expectedController) + "</code></div>",
+      '<div class="expected-state ' + (matched ? "expected-match" : "expected-mismatch") + '">' + escapeHtml(matched ? "与期望一致" : "与期望不一致") + "</div>",
+      "</div>"
+    ].join("");
+  }
+
+  function functionTagsHtml(functions) {
+    return functions.map((fn) => {
+      const desc = data.functionDescriptions[fn] || "暂无说明";
+      return '<span class="fn-chip" tabindex="0" title="' + escapeHtml(desc) + '">' + escapeHtml(fn) + "</span>";
+    }).join("");
+  }
+
+  function statusBadgeHtml(status) {
+    const meta = statusMeta(status);
+    return '<span class="status-badge ' + meta.className + '" title="' + escapeHtml(meta.desc) + '">' + escapeHtml(meta.label) + "</span>";
   }
 
   function renderPermissions() {
-    permissionsTableBody.innerHTML = filteredPermissions().map((item) => {
+    const items = filteredPermissions();
+    permissionsTableBody.innerHTML = items.map((item) => {
       const contractLink = explorerLink(item.address);
-      const currentLink = explorerLink(item.documentedController);
-      const functionTags = item.functions.map((fn) => '<span class="tag">' + escapeHtml(fn) + "</span>").join("");
       const liveRead = state.livePermissionReads[item.id];
 
       return [
         "<tr>",
         "<td>",
         '<div class="contract-name">' + escapeHtml(item.contract) + "</div>",
-        '<div class="subtle"><span class="tag ' + permissionTagClass(item.permissionType) + '">' + escapeHtml(item.permissionType) + "</span></div>",
+        '<div class="subtle"><span class="tag ' + permissionTagClass(item.permissionType) + '">' + escapeHtml(item.permissionType) + '</span></div>',
         contractLink
           ? '<div><a class="mono-link" href="' + contractLink + '" target="_blank" rel="noreferrer">' + escapeHtml(item.address) + "</a></div>"
           : "<div><code>" + escapeHtml(item.address) + "</code></div>",
-        '<div class="subtle">Status: ' + escapeHtml(item.status === "pending" ? "Pending handover" : "Assigned") + "</div>",
+        '<div class="status-line">状态: ' + statusBadgeHtml(item.status) + "</div>",
         "</td>",
-        "<td>",
-        currentLink
-          ? '<a class="mono-link" href="' + currentLink + '" target="_blank" rel="noreferrer">' + escapeHtml(item.documentedController) + "</a>"
-          : "<code>" + escapeHtml(item.documentedController) + "</code>",
-        '<div class="subtle">' + escapeHtml(shortAddress(item.documentedController)) + "</div>",
-        "</td>",
-        "<td>" + liveStateHtml(liveRead) + "</td>",
-        "<td>",
-        "<div>" + escapeHtml(item.suggestedController) + "</div>",
-        '<div class="subtle">' + escapeHtml(item.note) + "</div>",
-        "</td>",
-        "<td>" + functionTags + "</td>",
-        '<td><strong class="' + riskClass(item.risk) + '">' + escapeHtml(item.risk.toUpperCase()) + "</strong></td>",
+        "<td>" + liveStateHtml(item, liveRead) + expectedStateHtml(item, liveRead) + "</td>",
+        "<td><div>" + escapeHtml(item.suggestedController) + '</div><div class="subtle">' + escapeHtml(item.note) + "</div></td>",
+        '<td><div class="fn-chip-scroll"><div class="fn-chip-list">' + functionTagsHtml(item.functions) + "</div></div></td>",
         "</tr>"
       ].join("");
     }).join("");
+
+    if (!items.length) {
+      permissionsTableBody.innerHTML = '<tr><td colspan="4"><div class="empty-state">没有符合当前筛选条件的权限项。</div></td></tr>';
+    }
   }
 
-  function renderFunctions() {
-    functionTableBody.innerHTML = data.functionMatrix.map((item) => [
-      "<tr>",
-      '<td><div class="contract-name">' + escapeHtml(item.contract) + "</div></td>",
-      '<td><span class="tag ' + permissionTagClass(item.permissionType) + '">' + escapeHtml(item.permissionType) + "</span></td>",
-      "<td>" + escapeHtml(item.functions) + "</td>",
-      "<td>" + escapeHtml(item.purpose) + "</td>",
-      "<td><code>" + escapeHtml(item.source) + "</code></td>",
-      "</tr>"
-    ].join("")).join("");
-  }
+  function refreshLiveStats() {
+    const stats = { permissionReads: 0, errors: 0, loading: 0 };
 
-  function renderProxies() {
-    proxyTableBody.innerHTML = data.proxies.map((item) => {
-      const live = state.liveProxyReads[item.id];
-      const implStatus = live ? compareAddress(item.documentedImplementation, live.implementation) : "loading";
-      const adminStatus = live ? compareAddress(item.documentedProxyAdmin, live.proxyAdmin) : "loading";
-      const ownerStatus = live ? compareAddress(item.documentedAdminOwner, live.adminOwner) : "loading";
+    Object.values(state.livePermissionReads).forEach((item) => {
+      if (!item) return;
+      if (item.status === "ok") stats.permissionReads += 1;
+      else if (item.status === "loading") stats.loading += 1;
+      else if (item.status === "error") stats.errors += 1;
+    });
 
-      return [
-        "<tr>",
-        '<td><div class="contract-name">' + escapeHtml(item.proxy) + "</div></td>",
-        '<td><a class="mono-link" href="' + explorerLink(item.proxyAddress) + '" target="_blank" rel="noreferrer">' + escapeHtml(item.proxyAddress) + "</a></td>",
-        "<td>",
-        '<span class="live-pill ' + statusClass(implStatus) + '">' + escapeHtml(implStatus === "ok" ? "Match" : implStatus === "mismatch" ? "Mismatch" : implStatus === "loading" ? "Loading" : "Unknown") + "</span>",
-        live && live.implementation ? '<div><code>' + escapeHtml(live.implementation) + "</code></div>" : '<div class="subtle">doc: <code>' + escapeHtml(item.documentedImplementation) + "</code></div>",
-        "</td>",
-        "<td><code>" + escapeHtml(item.documentedProxyAdmin) + "</code></td>",
-        "<td>",
-        '<span class="live-pill ' + statusClass(adminStatus) + '">' + escapeHtml(adminStatus === "ok" ? "Match" : adminStatus === "mismatch" ? "Mismatch" : adminStatus === "loading" ? "Loading" : "Unknown") + "</span>",
-        live && live.proxyAdmin ? '<div><code>' + escapeHtml(live.proxyAdmin) + "</code></div>" : '<div class="subtle">Waiting for RPC read</div>',
-        "</td>",
-        "<td>",
-        '<span class="live-pill ' + statusClass(ownerStatus) + '">' + escapeHtml(ownerStatus === "ok" ? "Match" : ownerStatus === "mismatch" ? "Mismatch" : ownerStatus === "loading" ? "Loading" : "Unknown") + "</span>",
-        live && live.adminOwner ? '<div><code>' + escapeHtml(live.adminOwner) + "</code></div>" : '<div class="subtle">Waiting for RPC read</div>',
-        "</td>",
-        "</tr>"
-      ].join("");
-    }).join("");
-  }
-
-  function renderExecution() {
-    executionList.innerHTML = data.executionPlan.map((item) => "<li>" + escapeHtml(item) + "</li>").join("");
-  }
-
-  function renderAudit() {
-    auditList.innerHTML = data.auditChecklist.map((item) => "<li>" + escapeHtml(item) + "</li>").join("");
-  }
-
-  function renderNotes() {
-    notesGrid.innerHTML = data.notes.map((note) => [
-      '<article class="note-card">',
-      "<h3>" + escapeHtml(note.title) + "</h3>",
-      "<p>" + escapeHtml(note.body) + "</p>",
-      "</article>"
-    ].join("")).join("");
+    state.liveStats = stats;
+    renderLiveSummary();
   }
 
   function setRpcMessage(message, tone) {
@@ -287,119 +325,66 @@
   }
 
   async function connectProvider() {
-    if (!ethers) {
-      throw new Error("ethers CDN failed to load. Check external script access.");
+    if (!ethersLib) {
+      throw new Error("ethers CDN 加载失败，请检查外部脚本访问。");
     }
+
     for (const url of data.rpcUrls) {
       try {
-        const provider = new ethers.providers.JsonRpcProvider(url, data.chainId);
+        const provider = new ethersLib.providers.JsonRpcProvider(url, data.chainId);
         await provider.getBlockNumber();
         state.provider = provider;
         state.providerUrl = url;
-        setRpcMessage("Connected to " + url, "rpc-ok");
+        setRpcMessage("已连接 RPC: " + url, "rpc-ok");
         return provider;
       } catch (error) {
         continue;
       }
     }
-    throw new Error("Could not connect to any configured Base RPC.");
+
+    throw new Error("无法连接到可用的 Base RPC。");
   }
 
   async function loadPermissionReads() {
     const provider = state.provider || await connectProvider();
 
     await Promise.all(data.permissions.map(async (item) => {
-      state.livePermissionReads[item.id] = { status: "loading", detail: "Reading chain..." };
+      state.livePermissionReads[item.id] = { status: "loading" };
+      refreshLiveStats();
       renderPermissions();
       try {
-        const contract = new ethers.Contract(item.liveRead.target, item.liveRead.abi, provider);
-        const rawValue = await contract[item.liveRead.method]();
-        const value = typeof rawValue === "string" ? rawValue : rawValue.toString();
-        const status = compareAddress(item.documentedController, value);
+        const contract = new ethersLib.Contract(item.liveRead.target, item.liveRead.abi, provider);
+        const args = item.liveRead.args || [];
+        const rawValue = await contract[item.liveRead.method](...args);
+        const formatted = formatReadValue(item, rawValue);
         state.livePermissionReads[item.id] = {
-          status,
-          value,
-          detail: status === "ok"
-            ? "Matches documented inventory."
-            : status === "mismatch"
-              ? "Live chain value differs from documented inventory."
-              : "Documented value is not a clean address, so only live value is shown."
+          status: "ok",
+          kind: formatted.kind,
+          compareValue: formatted.compareValue,
+          displayHtml: formatted.displayHtml
         };
       } catch (error) {
         state.livePermissionReads[item.id] = {
           status: "error",
-          value: null,
-          detail: error.message || "Read failed"
+          detail: error.message || "读取失败"
         };
       }
+      refreshLiveStats();
+      renderPermissions();
     }));
-  }
-
-  async function loadProxyReads() {
-    const provider = state.provider || await connectProvider();
-
-    await Promise.all(data.proxies.map(async (item) => {
-      try {
-        const implementationRaw = await provider.getStorageAt(item.proxyAddress, IMPLEMENTATION_SLOT);
-        const proxyAdminRaw = await provider.getStorageAt(item.proxyAddress, ADMIN_SLOT);
-        const implementation = addressFromStorage(implementationRaw);
-        const proxyAdmin = addressFromStorage(proxyAdminRaw);
-        let adminOwner = null;
-
-        if (proxyAdmin) {
-          const contract = new ethers.Contract(proxyAdmin, ["function owner() view returns (address)"], provider);
-          adminOwner = await contract.owner();
-        }
-
-        state.liveProxyReads[item.id] = { implementation, proxyAdmin, adminOwner };
-      } catch (error) {
-        state.liveProxyReads[item.id] = { error: error.message || "Read failed" };
-      }
-    }));
-  }
-
-  function refreshLiveStats() {
-    const stats = { ok: 0, mismatch: 0, unknown: 0, errors: 0 };
-    Object.values(state.livePermissionReads).forEach((item) => {
-      if (!item) return;
-      if (item.status === "ok") stats.ok += 1;
-      else if (item.status === "mismatch") stats.mismatch += 1;
-      else if (item.status === "error") stats.errors += 1;
-      else stats.unknown += 1;
-    });
-
-    data.proxies.forEach((proxy) => {
-      const live = state.liveProxyReads[proxy.id];
-      if (!live || live.error) {
-        stats.errors += 1;
-        return;
-      }
-      [compareAddress(proxy.documentedImplementation, live.implementation),
-        compareAddress(proxy.documentedProxyAdmin, live.proxyAdmin),
-        compareAddress(proxy.documentedAdminOwner, live.adminOwner)
-      ].forEach((result) => {
-        if (result === "ok") stats.ok += 1;
-        else if (result === "mismatch") stats.mismatch += 1;
-        else stats.unknown += 1;
-      });
-    });
-
-    state.liveStats = stats;
-    renderLiveSummary();
   }
 
   async function refreshOnchainState() {
     refreshLiveBtn.disabled = true;
-    setRpcMessage("Connecting to Base RPC...", "rpc-loading");
+    setRpcMessage("正在连接 Base RPC...", "rpc-loading");
     try {
       await connectProvider();
-      await Promise.all([loadPermissionReads(), loadProxyReads()]);
+      await loadPermissionReads();
       refreshLiveStats();
       renderPermissions();
-      renderProxies();
-      setRpcMessage("Live data refreshed from " + state.providerUrl, "rpc-ok");
+      setRpcMessage("链上数据已刷新，来源: " + state.providerUrl, "rpc-ok");
     } catch (error) {
-      setRpcMessage(error.message || "RPC refresh failed", "rpc-error");
+      setRpcMessage(error.message || "RPC 刷新失败", "rpc-error");
     } finally {
       refreshLiveBtn.disabled = false;
     }
@@ -429,7 +414,7 @@
       const text = button.getAttribute("data-copy");
       const success = function () {
         const previous = button.textContent;
-        button.textContent = "Copied";
+        button.textContent = "已复制";
         setTimeout(function () {
           button.textContent = previous;
         }, 1200);
@@ -456,11 +441,6 @@
   renderLiveSummary();
   populateTypeFilter();
   renderPermissions();
-  renderFunctions();
-  renderProxies();
-  renderExecution();
-  renderAudit();
-  renderNotes();
   bindEvents();
   refreshOnchainState();
 })();

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Base Contract Permissions Ops Doc</title>
+  <title>Base 合约权限执行文档</title>
   <style>
     :root {
       --bg: #f5efe6;
@@ -63,40 +63,40 @@
 <body>
   <div class="shell">
     <article class="card">
-      <a href="../index.html">Back to dashboard</a>
-      <h1>Base Contract Permissions Ops Doc</h1>
-      <p>Built from <code>D:\buzzing</code> source contracts and local notes for handover planning and verification.</p>
+      <a href="../index.html">返回 Dashboard</a>
+      <h1>Base 合约权限执行文档</h1>
+      <p>基于 <code>D:\buzzing</code> 的合约源码和本地文档整理，用于权限迁移规划和验收核对。</p>
 
-      <h2>1. Permission types</h2>
+      <h2>1. 权限类型</h2>
       <h3>owner</h3>
       <ul>
-        <li>Single governance address. Transferable.</li>
-        <li>Usually controls key config, target addresses, fee withdrawal, and allowlists.</li>
+        <li>单一治理地址，可迁移。</li>
+        <li>通常控制关键配置、目标地址、费用提取和授权名单。</li>
       </ul>
       <h3>auth / wards</h3>
       <ul>
-        <li>Multi-admin model managed by <code>rely</code>, <code>deny</code>, or <code>setAuth</code>.</li>
-        <li>Useful for payouts, settlement, and backend automation.</li>
+        <li>多管理员模型，通过 <code>rely</code>、<code>deny</code> 或 <code>setAuth</code> 管理。</li>
+        <li>适合返佣发放、结算和后端自动化执行。</li>
       </ul>
       <h3>oracle</h3>
       <ul>
-        <li>Business result authority, separate from owner.</li>
-        <li>High risk in <code>PreTrading</code>.</li>
+        <li>业务结果权限，独立于 owner。</li>
+        <li>在 <code>PreTrading</code> 中风险较高。</li>
       </ul>
       <h3>ProxyAdmin.owner</h3>
       <ul>
-        <li>Controls transparent proxy upgrades independently of business owner.</li>
-        <li>Best moved to a governance multisig instead of the deployer EOA.</li>
+        <li>独立控制透明代理升级，不等同于业务 owner。</li>
+        <li>建议迁移到治理多签，而不是继续留在部署 EOA。</li>
       </ul>
 
-      <h2>2. Pending handovers</h2>
+      <h2>2. 待迁移权限</h2>
       <table>
         <thead>
           <tr>
-            <th>Contract</th>
-            <th>Address</th>
-            <th>Current owner</th>
-            <th>Key functions</th>
+            <th>合约</th>
+            <th>地址</th>
+            <th>当前 owner</th>
+            <th>关键函数</th>
           </tr>
         </thead>
         <tbody>
@@ -127,28 +127,28 @@
         </tbody>
       </table>
 
-      <h2>3. Proxy upgrade control</h2>
-      <p><code>ProxyAdmin 0x31275dFd50d1fd1802da26c4D7BE594046E6e41a</code> is still owned by the deployer EOA and affects:</p>
+      <h2>3. Proxy 升级权限</h2>
+      <p><code>ProxyAdmin 0x31275dFd50d1fd1802da26c4D7BE594046E6e41a</code> 当前仍由部署 EOA 控制，影响以下 Proxy：</p>
       <ul>
         <li><code>tBLPProxy 0xaaF4C01F8f35e2563C2334802CcE13D09C9256f4</code></li>
         <li><code>sBLPProxy 0x2A149d1b7Cb2cFBd8AF7ea0c816ebaB85bd7Cc45</code></li>
         <li><code>tradeManagerProxy 0x4a8793AE855AE40A00504D61d2ac4074B5214669</code></li>
         <li><code>feeAdapterProxy 0xE454a76dA1Ec485061488d8c272D2154bf1ddf4F</code></li>
       </ul>
-      <p>Typical actions include <code>transferOwnership</code>, <code>upgrade</code>, <code>upgradeAndCall</code>, and <code>changeProxyAdmin</code>.</p>
+      <p>典型动作包括 <code>transferOwnership</code>、<code>upgrade</code>、<code>upgradeAndCall</code> 和 <code>changeProxyAdmin</code>。</p>
 
-      <h2>4. Items to confirm</h2>
+      <h2>4. 需要确认的事项</h2>
       <ul>
-        <li>Whether <code>PreTrading.owner</code> really moves. Historical notes suggested only moving oracle.</li>
-        <li>The final multisig destination for <code>ProxyAdmin.owner</code> is still TBD.</li>
+        <li><code>PreTrading.owner</code> 是否真的迁移。历史文档曾建议只迁移 oracle。</li>
+        <li><code>ProxyAdmin.owner</code> 的最终多签接收地址目前仍是 TBD。</li>
       </ul>
 
-      <h2>5. Suggested sequence</h2>
+      <h2>5. 建议执行顺序</h2>
       <ol>
-        <li>Move <code>ProxyAdmin.owner</code> first.</li>
-        <li>Move the four pending <code>owner</code> roles next.</li>
-        <li>Grant execution wallets such as <code>FeeRebateDistributor.setAuth</code>.</li>
-        <li>Read everything back from chain after each step.</li>
+        <li>先迁移 <code>ProxyAdmin.owner</code>。</li>
+        <li>再迁移 4 个待处理 <code>owner</code>。</li>
+        <li>补齐执行钱包，例如 <code>FeeRebateDistributor.setAuth</code>。</li>
+        <li>每一步结束后都从链上读回状态做验收。</li>
       </ol>
     </article>
   </div>
