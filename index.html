@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Base Contract Permissions Dashboard</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Base Mainnet</p>
+        <h1>Contract Permissions Dashboard</h1>
+        <p class="hero-text">
+          A single view for Base mainnet ownership, oracle, auth, and ProxyAdmin upgrade control,
+          with live onchain reads, execution notes, and verification checklists.
+        </p>
+        <div class="hero-meta" id="heroMeta"></div>
+      </div>
+      <aside class="hero-panel">
+        <div class="panel-title">Live Mode</div>
+        <p>
+          The page can read Base mainnet in real time and compare documented values with live values from RPC.
+        </p>
+        <div class="hero-actions">
+          <button id="refreshLiveBtn" class="primary-btn" type="button">Refresh Onchain Status</button>
+          <a class="doc-link" href="./docs/index.html" target="_blank" rel="noreferrer">Open Ops Doc</a>
+        </div>
+        <div class="rpc-status" id="rpcStatus">RPC not connected yet.</div>
+      </aside>
+    </header>
+
+    <main>
+      <section class="summary-grid" id="summaryGrid"></section>
+
+      <section class="section-block">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Wallet Roles</p>
+            <h2>Role Wallets</h2>
+          </div>
+        </div>
+        <div class="wallet-grid" id="walletGrid"></div>
+      </section>
+
+      <section class="section-block">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Live Health</p>
+            <h2>Onchain Read Summary</h2>
+          </div>
+        </div>
+        <div class="summary-grid" id="liveSummaryGrid"></div>
+      </section>
+
+      <section class="section-block">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Permissions</p>
+            <h2>Permission Inventory</h2>
+          </div>
+          <div class="filters">
+            <input id="searchInput" type="search" placeholder="Search contract, address, function, permission type">
+            <select id="typeFilter">
+              <option value="all">All permission types</option>
+            </select>
+            <select id="statusFilter">
+              <option value="all">All statuses</option>
+              <option value="pending">Pending handover</option>
+              <option value="assigned">Assigned</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Contract / Permission</th>
+                <th>Documented Controller</th>
+                <th>Live Onchain Read</th>
+                <th>Suggested Target / Note</th>
+                <th>Key Functions</th>
+                <th>Risk</th>
+              </tr>
+            </thead>
+            <tbody id="permissionsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section-block">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Function Matrix</p>
+            <h2>Permission Function Matrix</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Contract</th>
+                <th>Permission Type</th>
+                <th>Callable Functions</th>
+                <th>Impact</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody id="functionTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section-block">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Upgradeable</p>
+            <h2>Proxy Upgrade Surface</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Proxy</th>
+                <th>Documented Proxy</th>
+                <th>Live Implementation</th>
+                <th>Documented ProxyAdmin</th>
+                <th>Live ProxyAdmin</th>
+                <th>Live ProxyAdmin Owner</th>
+              </tr>
+            </thead>
+            <tbody id="proxyTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="split-grid">
+        <section class="section-block">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Execution</p>
+              <h2>Suggested Sequence</h2>
+            </div>
+          </div>
+          <ol class="timeline" id="executionList"></ol>
+        </section>
+
+        <section class="section-block">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">Verification</p>
+              <h2>Checklist</h2>
+            </div>
+          </div>
+          <ul class="checklist" id="auditList"></ul>
+        </section>
+      </section>
+
+      <section class="section-block">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Risk Notes</p>
+            <h2>Important Notes</h2>
+          </div>
+        </div>
+        <div class="notes-grid" id="notesGrid"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script src="./data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

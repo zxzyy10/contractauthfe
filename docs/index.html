@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Base Contract Permissions Ops Doc</title>
+  <style>
+    :root {
+      --bg: #f5efe6;
+      --surface: #fffdf8;
+      --line: rgba(21, 33, 29, 0.12);
+      --ink: #15211d;
+      --muted: #58655e;
+      --accent: #8a4619;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #f6f0e7 0%, #efe6d7 100%);
+      color: var(--ink);
+      font-family: "Segoe UI", "PingFang SC", sans-serif;
+    }
+    .shell {
+      width: min(960px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 48px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: 0 18px 45px rgba(78, 53, 25, 0.1);
+    }
+    h1, h2, h3 { line-height: 1.15; }
+    h1 { margin: 0 0 10px; font-size: 40px; }
+    h2 { margin-top: 28px; }
+    h3 { margin-top: 22px; color: var(--accent); }
+    p, li { line-height: 1.7; color: var(--muted); }
+    code {
+      font-family: "Cascadia Code", Consolas, monospace;
+      background: rgba(138, 70, 25, 0.08);
+      padding: 2px 6px;
+      border-radius: 8px;
+      color: var(--ink);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: rgba(138, 70, 25, 0.08); }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <article class="card">
+      <a href="../index.html">Back to dashboard</a>
+      <h1>Base Contract Permissions Ops Doc</h1>
+      <p>Built from <code>D:\buzzing</code> source contracts and local notes for handover planning and verification.</p>
+
+      <h2>1. Permission types</h2>
+      <h3>owner</h3>
+      <ul>
+        <li>Single governance address. Transferable.</li>
+        <li>Usually controls key config, target addresses, fee withdrawal, and allowlists.</li>
+      </ul>
+      <h3>auth / wards</h3>
+      <ul>
+        <li>Multi-admin model managed by <code>rely</code>, <code>deny</code>, or <code>setAuth</code>.</li>
+        <li>Useful for payouts, settlement, and backend automation.</li>
+      </ul>
+      <h3>oracle</h3>
+      <ul>
+        <li>Business result authority, separate from owner.</li>
+        <li>High risk in <code>PreTrading</code>.</li>
+      </ul>
+      <h3>ProxyAdmin.owner</h3>
+      <ul>
+        <li>Controls transparent proxy upgrades independently of business owner.</li>
+        <li>Best moved to a governance multisig instead of the deployer EOA.</li>
+      </ul>
+
+      <h2>2. Pending handovers</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Contract</th>
+            <th>Address</th>
+            <th>Current owner</th>
+            <th>Key functions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>FeeRebateDistributor</td>
+            <td><code>0x4F0077104Ca290cC4D26E0877033b8330334081F</code></td>
+            <td><code>0x54fa4358330136332430e779BeaAD0CbA1404eAf</code></td>
+            <td><code>transferOwnership</code> <code>setFeeAdapter</code> <code>setAuth</code></td>
+          </tr>
+          <tr>
+            <td>PreTrading</td>
+            <td><code>0x33dCFc0c163B7309422beD6d6BBf73DA946c0284</code></td>
+            <td><code>0x54fa4358330136332430e779BeaAD0CbA1404eAf</code></td>
+            <td><code>withdrawMarketFee</code> <code>setDelay</code> <code>setOracle</code></td>
+          </tr>
+          <tr>
+            <td>DynamicFeeManager</td>
+            <td><code>0x236e856418ffF886efBA88ba6c79fd6543aaFD24</code></td>
+            <td><code>0x54fa4358330136332430e779BeaAD0CbA1404eAf</code></td>
+            <td><code>reset</code> <code>transferOwnership</code></td>
+          </tr>
+          <tr>
+            <td>USDB</td>
+            <td><code>0x89401d7C5F5Cf4936F10418B9C536f97b0bCf71B</code></td>
+            <td><code>0x54fa4358330136332430e779BeaAD0CbA1404eAf</code></td>
+            <td><code>transferOwnership</code> <code>setVault</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>3. Proxy upgrade control</h2>
+      <p><code>ProxyAdmin 0x31275dFd50d1fd1802da26c4D7BE594046E6e41a</code> is still owned by the deployer EOA and affects:</p>
+      <ul>
+        <li><code>tBLPProxy 0xaaF4C01F8f35e2563C2334802CcE13D09C9256f4</code></li>
+        <li><code>sBLPProxy 0x2A149d1b7Cb2cFBd8AF7ea0c816ebaB85bd7Cc45</code></li>
+        <li><code>tradeManagerProxy 0x4a8793AE855AE40A00504D61d2ac4074B5214669</code></li>
+        <li><code>feeAdapterProxy 0xE454a76dA1Ec485061488d8c272D2154bf1ddf4F</code></li>
+      </ul>
+      <p>Typical actions include <code>transferOwnership</code>, <code>upgrade</code>, <code>upgradeAndCall</code>, and <code>changeProxyAdmin</code>.</p>
+
+      <h2>4. Items to confirm</h2>
+      <ul>
+        <li>Whether <code>PreTrading.owner</code> really moves. Historical notes suggested only moving oracle.</li>
+        <li>The final multisig destination for <code>ProxyAdmin.owner</code> is still TBD.</li>
+      </ul>
+
+      <h2>5. Suggested sequence</h2>
+      <ol>
+        <li>Move <code>ProxyAdmin.owner</code> first.</li>
+        <li>Move the four pending <code>owner</code> roles next.</li>
+        <li>Grant execution wallets such as <code>FeeRebateDistributor.setAuth</code>.</li>
+        <li>Read everything back from chain after each step.</li>
+      </ol>
+    </article>
+  </div>
+</body>
+</html>
