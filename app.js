@@ -172,8 +172,9 @@
         kind: "auth",
         compareValue,
         displayHtml:
-          "<div><code>" + escapeHtml(item.expectedAccount) + "</code></div>" +
-          '<div class="subtle">' + escapeHtml(compareValue ? "已在链上授权名单中" : "当前未在链上授权名单中") + "</div>"
+          '<div class="auth-live-result ' + (compareValue ? "auth-live-in" : "auth-live-out") + '">' +
+          escapeHtml(compareValue ? "in auth" : "not in auth") +
+          "</div>"
       };
     }
 
@@ -199,14 +200,13 @@
   function expectedStateHtml(item, read) {
     if (item.permissionType === "auth") {
       const account = item.expectedAccount;
-      const expectedAuthorized = !!item.expectedAuthorized;
 
       if (!read || read.status === "loading") {
         return [
           '<div class="expected-block">',
           '<div class="subtle">期望 auth 地址</div>',
           "<div><code>" + escapeHtml(account) + "</code></div>",
-          '<div class="expected-state expected-pending">等待链上返回后比对</div>',
+          '<div class="expected-state expected-pending">等待链上返回授权状态</div>',
           "</div>"
         ].join("");
       }
@@ -216,17 +216,16 @@
           '<div class="expected-block">',
           '<div class="subtle">期望 auth 地址</div>',
           "<div><code>" + escapeHtml(account) + "</code></div>",
-          '<div class="expected-state expected-pending">读取失败，暂不比对</div>',
+          '<div class="expected-state expected-pending">读取失败，暂未确认是否在 auth 权限中</div>',
           "</div>"
         ].join("");
       }
 
-      const matched = read.compareValue === expectedAuthorized;
       return [
         '<div class="expected-block">',
         '<div class="subtle">期望 auth 地址</div>',
         "<div><code>" + escapeHtml(account) + "</code></div>",
-        '<div class="expected-state ' + (matched ? "expected-match" : "expected-mismatch") + '">' + escapeHtml(matched ? "与期望一致" : "与期望不一致") + "</div>",
+        '<div class="expected-state ' + (read.compareValue ? "expected-match" : "expected-pending") + '">' + escapeHtml(read.compareValue ? "已在 auth 权限中" : "不在 auth 权限中") + "</div>",
         "</div>"
       ].join("");
     }
